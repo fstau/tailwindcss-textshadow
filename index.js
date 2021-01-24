@@ -1,18 +1,7 @@
-
 const _ = require('lodash')
 const Color = require('color')
 const plugin = require('tailwindcss/plugin')
 const flattenColorPalette = require('tailwindcss/lib/util/flattenColorPalette')
-
-// Utility to handle hexToRgb conversion
-function hexToRgb(hex) {
-  var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? {
-    r: parseInt(result[1], 16),
-    g: parseInt(result[2], 16),
-    b: parseInt(result[3], 16)
-  } : null;
-}
 
 function getColor(color) {
   try {
@@ -36,12 +25,13 @@ module.exports = plugin(function({ addUtilities, e, theme, variants }) {
       shadows: []
     }
 
-    // Prepare colors
+    // Prepare theme colors
     let themeColors = []
-    let themeColorNames = []
     _.map(flattenColorPalette.default(theme('colors')), (value, name) => {
-      themeColors.push(getColor(value))
-      themeColorNames.push(name)
+      themeColors.push({
+        name: name,
+        color: getColor(value)
+      })
     })
 
     // Parse options
@@ -64,83 +54,82 @@ module.exports = plugin(function({ addUtilities, e, theme, variants }) {
 
     // Handle multiple shadows
     if (config.shadows.length > 0 && config.value.length === 0) {
-
-      let shadowLayers = []
-
+      
       // Iterate over shadow layers
+      let shadowLayers = []
       _.map(config.shadows, (s) => {
         
-        let layer = {
+        // Prepare layers
+        let shadowLayer = {
           modifiers: [],
           options: []
         }
-        
-        // Handle user defined colors
         if (s.color) {
+          // Handle user defined colors
           const c = getColor(s.color)
           if (c) {
-            layer.options.push(`${s.x} ${s.x} ${s.blur} rgba(${c.red()}, ${c.green()}, ${c.blue()}, ${s.opacity})`)
+            shadowLayer.options.push(`${s.x} ${s.x} ${s.blur} rgba(${c.red()}, ${c.green()}, ${c.blue()}, ${s.opacity})`)
           } else {
-            layer.options.push('none')
+            shadowLayer.options.push('none')
           }
         } else {
           // Color is not defined, generate variants for theme colors
-          _.map(themeColors, (color, i) => {
-            // Iterate over theme colors
-            const c = getColor(color)
-            layer.modifiers.push(themeColorNames[i])
+          _.map(themeColors, (tc, i) => {
+            const c = tc.color
+            shadowLayer.modifiers.push(tc.name)
             if (c) {
-              layer.options.push(`${s.x} ${s.x} ${s.blur} rgba(${c.red()}, ${c.green()}, ${c.blue()}, ${s.opacity})`)
+              shadowLayer.options.push(`${s.x} ${s.x} ${s.blur} rgba(${c.red()}, ${c.green()}, ${c.blue()}, ${s.opacity})`)
             } else {
-              layer.options.push('none')
+              shadowLayer.options.push('none')
             }
           })
         }
-        shadowLayers.push(layer)
+        shadowLayers.push(shadowLayer)
       })
 
-      let opts = []
-      let mods = []
+      // Generate variants 
+      let modifiers = []
+      let values = []
       _.map(shadowLayers, (layer) => {
-        if (opts.length === 0) {
+        if (values.length === 0) {
           layer.options.forEach((option, i) => {
-            opts.push(option)
+            values.push(option)
             if (layer.modifiers[i]) {
-              mods.push(layer.modifiers[i])
+              modifiers.push(layer.modifiers[i])
             }
           })
         } else {
-          let ret = []
-          let retmods = []
-          opts.forEach((inner, j) => {
+          let layerValues = []
+          let layerModifiers = []
+          values.forEach((inner, j) => {
             layer.options.forEach((outer, i) => {
-              ret.push(`${inner}, ${outer}`)
+              layerValues.push(`${inner}, ${outer}`)
               if (layer.modifiers[i]) {
-                if (mods[j]) {
-                  retmods.push(`${mods[j]}-${layer.modifiers[i]}`)
+                if (modifiers[j]) {
+                  layerModifiers.push(`${modifiers[j]}-${layer.modifiers[i]}`)
                 } else {
-                  retmods.push(`${layer.modifiers[i]}`)
+                  layerModifiers.push(`${layer.modifiers[i]}`)
                 }
               } else {
-                retmods = mods
+                layerModifiers = modifiers
               }
             })
           })
-          opts = ret
-          mods = retmods
+          values = layerValues
+          modifiers = layerModifiers
         }
       })
 
-      _.map(opts, (option, i) => {
+      // Generate classes
+      _.map(values, (option, i) => {
         let className = ''
-        if (mods[i]) {
-          className = `${e(`text-shadow-${modifier}-${mods[i]}`)}`
+        if (modifiers[i]) {
+          className = `${e(`text-shadow-${modifier}-${modifiers[i]}`)}`
         } else {
           className = `${e(`text-shadow-${modifier}`)}`
         }
         utilities[`.${className}`] = {'text-shadow': option}
       })
-  
     }
     
   })
@@ -155,10 +144,10 @@ module.exports = plugin(function({ addUtilities, e, theme, variants }) {
       md: '0px 1px 2px rgb(30 29 39 / 19%), 1px 2px 4px rgb(54 64 147 / 18%)',
       lg: '3px 3px 6px rgb(0 0 0 / 26%), 0 0 5px rgb(15 3 86 / 22%)',
       xl: '1px 1px 3px rgb(0 0 0 / 29%), 2px 4px 7px rgb(73 64 125 / 35%)',
-      test: {
+      test1: {
         custom: '1px 1px 3px rgb(0 0 0 / 29%), 2px 4px 7px rgb(73 64 125 / 35%)',
       },
-      testm: {
+      test2: {
         shadows: [
           {
             x: '0px',
@@ -173,17 +162,10 @@ module.exports = plugin(function({ addUtilities, e, theme, variants }) {
             blur: '0px',
             color: '#FCCD17',
             opacity: '1'
-          },
-          {
-            x: '10px',
-            y: '10px',
-            blur: '0px',
-            color: '#000000',
-            opacity: '1'
           }
         ],
       },
-      testn: {
+      test3: {
         shadows: [
           {
             x: '0px',
@@ -211,6 +193,6 @@ module.exports = plugin(function({ addUtilities, e, theme, variants }) {
     },
   },
   variants: {
-    textShadow: ['responsive', 'hover', 'focus'],
+    textShadow: ['responsive', 'hover'],
   }
 })
