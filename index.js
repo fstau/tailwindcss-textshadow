@@ -1,5 +1,6 @@
 
 const _ = require('lodash')
+const Color = require('color')
 const plugin = require('tailwindcss/plugin')
 const flattenColorPalette = require('tailwindcss/lib/util/flattenColorPalette')
 
@@ -11,6 +12,14 @@ function hexToRgb(hex) {
     g: parseInt(result[2], 16),
     b: parseInt(result[3], 16)
   } : null;
+}
+
+function getColor(color) {
+  try {
+    return Color(color)
+  } catch (error) {
+    return Color('transparent')
+  }
 }
 
 module.exports = plugin(function({ addUtilities, e, theme, variants }) {
@@ -30,9 +39,8 @@ module.exports = plugin(function({ addUtilities, e, theme, variants }) {
     // Prepare colors
     let themeColors = []
     let themeColorNames = []
-    const colors = flattenColorPalette.default(theme('colors'))
-    _.map(colors, (hashValue, name) => {
-      themeColors.push(hashValue)
+    _.map(flattenColorPalette.default(theme('colors')), (value, name) => {
+      themeColors.push(getColor(value))
       themeColorNames.push(name)
     })
 
@@ -57,41 +65,43 @@ module.exports = plugin(function({ addUtilities, e, theme, variants }) {
     // Handle multiple shadows
     if (config.shadows.length > 0 && config.value.length === 0) {
 
-      let generateShadows = []
+      let shadowLayers = []
 
+      // Iterate over shadow layers
       _.map(config.shadows, (s) => {
-        // FOR EVERY SHADOW
-        let out = {
+        
+        let layer = {
           modifiers: [],
           options: []
         }
+        
+        // Handle user defined colors
         if (s.color) {
-          // If shadow has color defined
-          const c = hexToRgb(s.color)
+          const c = getColor(s.color)
           if (c) {
-            out.options.push(`${s.x} ${s.x} ${s.blur} rgba(${c.r}, ${c.g}, ${c.b}, ${s.opacity})`)
+            layer.options.push(`${s.x} ${s.x} ${s.blur} rgba(${c.red()}, ${c.green()}, ${c.blue()}, ${s.opacity})`)
           } else {
-            out.options.push('none')
+            layer.options.push('none')
           }
         } else {
-          // Color is not defined
+          // Color is not defined, generate variants for theme colors
           _.map(themeColors, (color, i) => {
             // Iterate over theme colors
-            const c = hexToRgb(color)
-            out.modifiers.push(themeColorNames[i])
+            const c = getColor(color)
+            layer.modifiers.push(themeColorNames[i])
             if (c) {
-              out.options.push(`${s.x} ${s.x} ${s.blur} rgba(${c.r}, ${c.g}, ${c.b}, ${s.opacity})`)
+              layer.options.push(`${s.x} ${s.x} ${s.blur} rgba(${c.red()}, ${c.green()}, ${c.blue()}, ${s.opacity})`)
             } else {
-              out.options.push('none')
+              layer.options.push('none')
             }
           })
         }
-        generateShadows.push(out)
+        shadowLayers.push(layer)
       })
 
       let opts = []
       let mods = []
-      _.map(generateShadows, (layer) => {
+      _.map(shadowLayers, (layer) => {
         if (opts.length === 0) {
           layer.options.forEach((option, i) => {
             opts.push(option)
@@ -134,8 +144,6 @@ module.exports = plugin(function({ addUtilities, e, theme, variants }) {
     }
     
   })
-
-  // console.log(utilities)
 
   addUtilities(utilities, textShadowVariants)
 },
@@ -194,7 +202,7 @@ module.exports = plugin(function({ addUtilities, e, theme, variants }) {
             x: '10px',
             y: '10px',
             blur: '0px',
-            // color: '#000000',
+            color: '#000000',
             opacity: '1'
           }
         ],
